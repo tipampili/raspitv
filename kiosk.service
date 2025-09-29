@@ -1,5 +1,5 @@
 [Unit]
-Description=Chromium Kiosk
+Description=Firefox Kiosk
 Wants=graphical.target
 After=graphical.target
 
