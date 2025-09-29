@@ -5,11 +5,13 @@ xset -dpms
 
 unclutter -idle 0.5 -root &
 
-sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' /home/pi/.config/chromium/Default/Preferences
-sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' /home/pi/.config/chromium/Default/Preferences
+# Iniciar o Firefox em modo kiosk
+/usr/bin/firefox --kiosk http://192.168.5.20:4000 &
 
-/usr/bin/chromium-browser --noerrdialogs --disable-infobars --kiosk http://192.168.5.20:4000 
+# Aguarda o Firefox abrir para evitar erro com xdotool
+sleep 5
 
+# Caso tenha múltiplas abas abertas, alterna entre elas
 while true; do
    xdotool keydown ctrl+Tab; xdotool keyup ctrl+Tab;
    sleep 10
