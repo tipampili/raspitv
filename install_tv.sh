@@ -1,11 +1,11 @@
 #!/bin/bash
 # ===============================================================
-# Script de instalação unificado para Raspberry Pi (Modo Kiosk)
+# Script unificado de instalação Kiosk (Raspberry Pi OS)
 # Autor: TI Pampili
 # Data: 2025-11
 # ===============================================================
 
-# --- Seleção do modo ---
+# --- Escolha do modo ---
 MODO=$1
 if [ -z "$MODO" ]; then
   echo "Selecione o modo de instalação:"
@@ -40,7 +40,6 @@ else
   echo "📺 Display detectado: $DISPLAY_NAME"
 fi
 
-# Detectar resolução
 RESOLUCAO=$(xrandr | grep -A1 "$DISPLAY_NAME" | grep -o '[0-9]*x[0-9]*' | head -n 1)
 if [ -z "$RESOLUCAO" ]; then
   RESOLUCAO="1920x1080"
@@ -48,11 +47,11 @@ fi
 echo "📏 Resolução detectada: $RESOLUCAO"
 
 # ===============================================================
-# CRIAÇÃO DOS ARQUIVOS
+# CRIAÇÃO DOS ARQUIVOS DE KIOSK
 # ===============================================================
-echo "📝 Criando scripts e serviços..."
+echo "📝 Criando scripts de execução..."
 
-# --- Script do Kiosk (Padrão) ---
+# --- Script padrão ---
 cat <<EOF > /home/pi/kiosk.sh
 #!/bin/bash
 xset s noblank
@@ -60,21 +59,21 @@ xset s off
 xset -dpms
 unclutter -idle 0.5 -root &
 
-# Ajustar resolução detectada
+# Ajusta resolução detectada
 xrandr --output $DISPLAY_NAME --mode $RESOLUCAO --primary
 
-# Iniciar o Firefox em modo kiosk
+# Inicia Firefox em modo kiosk padrão
 /usr/bin/firefox --kiosk http://192.168.5.20:4000 &
 sleep 5
 
-# Alternar entre abas abertas (mantém navegador ativo)
+# Mantém alternância entre abas, se houver
 while true; do
    xdotool keydown ctrl+Tab; xdotool keyup ctrl+Tab;
    sleep 10
 done
 EOF
 
-# --- Script do Kiosk (Gerencial) ---
+# --- Script gerencial ---
 cat <<EOF > /home/pi/kiosk_gerencial.sh
 #!/bin/bash
 xset s noblank
@@ -82,14 +81,14 @@ xset s off
 xset -dpms
 unclutter -idle 0.5 -root &
 
-# Ajustar resolução detectada
+# Ajusta resolução detectada
 xrandr --output $DISPLAY_NAME --mode $RESOLUCAO --primary
 
-# Iniciar o Firefox em modo kiosk gerencial
+# Inicia Firefox em modo kiosk gerencial
 /usr/bin/firefox --kiosk http://192.168.5.20:4000/?tipo=gerencial &
 sleep 5
 
-# Alternar entre abas abertas (mantém navegador ativo)
+# Mantém alternância entre abas, se houver
 while true; do
    xdotool keydown ctrl+Tab; xdotool keyup ctrl+Tab;
    sleep 10
@@ -98,52 +97,36 @@ EOF
 
 chmod +x /home/pi/kiosk*.sh
 
-# --- Serviço Padrão ---
-cat <<'EOF' > /lib/systemd/system/kiosk.service
-[Unit]
-Description=Kiosk Mode Firefox
-After=systemd-user-sessions.service network.target
+# ===============================================================
+# CONFIGURAÇÃO DO LIGHTDM E AUTOSTART
+# ===============================================================
+echo "⚙️ Configurando LightDM e autostart..."
 
-[Service]
-User=pi
-Environment=XAUTHORITY=/home/pi/.Xauthority
-Environment=DISPLAY=:0
-ExecStart=/home/pi/kiosk.sh
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=graphical.target
-EOF
-
-# --- Serviço Gerencial ---
-cat <<'EOF' > /lib/systemd/system/kiosk_gerencial.service
-[Unit]
-Description=Kiosk Mode Firefox (Gerencial)
-After=systemd-user-sessions.service network.target
-
-[Service]
-User=pi
-Environment=XAUTHORITY=/home/pi/.Xauthority
-Environment=DISPLAY=:0
-ExecStart=/home/pi/kiosk_gerencial.sh
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=graphical.target
-EOF
-
-# --- Configuração LightDM ---
+# --- Forçar autologin do usuário pi ---
 cat <<'EOF' > /etc/lightdm/lightdm.conf
 [Seat:*]
-greeter-session=pi-greeter
-greeter-hide-users=false
-display-setup-script=/usr/share/dispsetup.sh
 autologin-user=pi
+greeter-session=pi-greeter
 [SeatDefaults]
 xserver-command=X -s 0 -dpms
 EOF
+
+# --- Adiciona o kiosk ao autostart do LXDE ---
+AUTOSTART_PATH="/etc/xdg/lxsession/LXDE-pi/autostart"
+
+# Garante que o diretório existe
+mkdir -p /etc/xdg/lxsession/LXDE-pi
+
+# Remove linhas antigas de kiosk (caso o script tenha sido executado antes)
+sed -i '/kiosk.sh/d' "$AUTOSTART_PATH" 2>/dev/null || true
+sed -i '/kiosk_gerencial.sh/d' "$AUTOSTART_PATH" 2>/dev/null || true
+
+# Adiciona a linha certa
+if [ "$MODO" = "padrao" ]; then
+  echo "@bash /home/pi/kiosk.sh" >> "$AUTOSTART_PATH"
+else
+  echo "@bash /home/pi/kiosk_gerencial.sh" >> "$AUTOSTART_PATH"
+fi
 
 # ===============================================================
 # DEPENDÊNCIAS
@@ -153,21 +136,9 @@ apt-get update -y
 apt-get install -y unclutter xdotool firefox-esr x11-xserver-utils
 
 # ===============================================================
-# ATIVAR SERVIÇO CORRETO
-# ===============================================================
-echo "⚙️ Ativando o serviço do modo $MODO..."
-if [ "$MODO" = "padrao" ]; then
-  systemctl disable kiosk_gerencial.service 2>/dev/null
-  systemctl enable kiosk.service
-else
-  systemctl disable kiosk.service 2>/dev/null
-  systemctl enable kiosk_gerencial.service
-fi
-
-# ===============================================================
 # FINALIZAÇÃO
 # ===============================================================
 echo "✅ Instalação concluída!"
-echo "🔁 Reiniciando o sistema em 5 segundos..."
+echo "🔁 O sistema será reiniciado em 5 segundos..."
 sleep 5
 reboot
