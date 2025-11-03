@@ -1,6 +1,7 @@
 #!/bin/bash
 # ===============================================================
 # Script unificado de instalação Kiosk (Raspberry Pi OS)
+# Inclui: Firefox em modo kiosk + VNC habilitado
 # Autor: TI Pampili
 # Data: 2025-11
 # ===============================================================
@@ -113,15 +114,13 @@ EOF
 
 # --- Adiciona o kiosk ao autostart do LXDE ---
 AUTOSTART_PATH="/etc/xdg/lxsession/LXDE-pi/autostart"
-
-# Garante que o diretório existe
 mkdir -p /etc/xdg/lxsession/LXDE-pi
 
-# Remove linhas antigas de kiosk (caso o script tenha sido executado antes)
+# Remove entradas antigas (caso script já tenha sido rodado)
 sed -i '/kiosk.sh/d' "$AUTOSTART_PATH" 2>/dev/null || true
 sed -i '/kiosk_gerencial.sh/d' "$AUTOSTART_PATH" 2>/dev/null || true
 
-# Adiciona a linha certa
+# Adiciona a linha correspondente
 if [ "$MODO" = "padrao" ]; then
   echo "@bash /home/pi/kiosk.sh" >> "$AUTOSTART_PATH"
 else
@@ -129,11 +128,17 @@ else
 fi
 
 # ===============================================================
-# DEPENDÊNCIAS
+# DEPENDÊNCIAS E ATIVAÇÃO DO VNC
 # ===============================================================
 echo "📦 Instalando dependências..."
 apt-get update -y
-apt-get install -y unclutter xdotool firefox-esr x11-xserver-utils
+apt-get install -y unclutter xdotool firefox-esr x11-xserver-utils realvnc-vnc-server realvnc-vnc-viewer raspi-config
+
+# --- Habilita VNC ---
+echo "🖥️ Habilitando VNC padrão do Raspberry Pi..."
+raspi-config nonint do_vnc 0
+systemctl enable vncserver-x11-serviced.service
+systemctl start vncserver-x11-serviced.service
 
 # ===============================================================
 # FINALIZAÇÃO
